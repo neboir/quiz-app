@@ -1,0 +1,58 @@
+.q-nav {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  height: 100%;
+}
+
+.q-nav-legend {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-bottom: var(--space-4);
+  border-bottom: 1px solid var(--border);
+}
+
+.q-nav-legend-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.q-nav-legend-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+}
+.q-nav-legend-dot.answered { background: var(--color-answered); }
+.q-nav-legend-dot.unanswered { background: var(--border-strong); }
+.q-nav-legend-dot.marked { background: var(--color-marked); }
+
+.q-nav-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(36px, 1fr));
+  gap: var(--space-2);
+  overflow-y: auto;
+  flex: 1;
+  padding-right: 4px;
+}
+
+/* Override statuses for answered/marked */
+.q-nav-btn.answered {
+  background: var(--color-answered);
+  border-color: var(--color-answered);
+  color: white;
+}
+.q-nav-btn.marked {
+  background: var(--color-marked);
+  border-color: var(--color-marked);
+  color: white;
+}
+.q-nav-btn.unanswered {
+  background: var(--bg-surface-2);
+  border-color: var(--border);
+  color: var(--text-muted);
+}
