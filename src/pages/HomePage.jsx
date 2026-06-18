@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import UploadZone from '../components/UploadZone';
 import { extractTextFromPDF, extractPDFData } from '../utils/pdfParser';
 import { parseQuestions } from '../utils/questionParser';
@@ -22,6 +22,45 @@ export default function HomePage({ onStartExam }) {
   const [examDuration, setExamDuration] = useState(60);
   const [shuffleQuestions, setShuffleQuestions] = useState(false);
   const [shuffleOptions, setShuffleOptions] = useState(false);
+  
+  // Advanced Config
+  const [questionCount, setQuestionCount] = useState(0);
+  const [selectionMode, setSelectionMode] = useState('random');
+
+  useEffect(() => {
+    const savedConfig = localStorage.getItem('quiz_exam_config');
+    if (savedConfig) {
+      try {
+        const config = JSON.parse(savedConfig);
+        if (config.questionCount) setQuestionCount(config.questionCount);
+        if (config.selectionMode) setSelectionMode(config.selectionMode);
+        if (config.examDuration) setExamDuration(config.examDuration);
+        if (typeof config.shuffleQuestions === 'boolean') setShuffleQuestions(config.shuffleQuestions);
+        if (typeof config.shuffleOptions === 'boolean') setShuffleOptions(config.shuffleOptions);
+      } catch (e) {}
+    }
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem('quiz_exam_config', JSON.stringify({
+      questionCount,
+      selectionMode,
+      examDuration,
+      shuffleQuestions,
+      shuffleOptions
+    }));
+  }, [questionCount, selectionMode, examDuration, shuffleQuestions, shuffleOptions]);
+
+  const handleQuestionCountChange = (val) => {
+    if (!parseResult) return;
+    const count = Math.min(Math.max(1, val), parseResult.bank.length);
+    setQuestionCount(count);
+    
+    if (count <= 20) setExamDuration(15);
+    else if (count <= 50) setExamDuration(30);
+    else if (count <= 100) setExamDuration(60);
+    else setExamDuration(Math.round(count * 0.6));
+  };
 
   const handleAnalyze = useCallback(async () => {
     if (!questionFile || !answerFile) return;
@@ -48,6 +87,7 @@ export default function HomePage({ onStartExam }) {
 
       if (bank.length > 0) {
         setStep(STEP.READY);
+        setQuestionCount(prev => (prev === 0 || prev > bank.length) ? bank.length : prev);
       } else {
         setStep(STEP.ERROR);
         setErrors(prev => ['Không tìm thấy câu hỏi hợp lệ. Vui lòng kiểm tra định dạng PDF.', ...prev]);
@@ -61,7 +101,16 @@ export default function HomePage({ onStartExam }) {
 
   const handleStartExam = () => {
     if (!parseResult?.bank?.length) return;
-    const quiz = shuffleQuiz(parseResult.bank, { shuffleQuestions, shuffleOptions });
+    
+    const qCount = Math.min(Math.max(1, questionCount || parseResult.bank.length), parseResult.bank.length);
+    let selectedQuestions = [...parseResult.bank];
+    
+    if (selectionMode === 'random') {
+      selectedQuestions = selectedQuestions.sort(() => 0.5 - Math.random());
+    }
+    selectedQuestions = selectedQuestions.slice(0, qCount);
+
+    const quiz = shuffleQuiz(selectedQuestions, { shuffleQuestions, shuffleOptions });
     onStartExam({
       questions: quiz,
       examTitle: examTitle || questionFile?.name?.replace('.pdf', '') || 'Đề thi',
@@ -207,6 +256,50 @@ export default function HomePage({ onStartExam }) {
             {/* Config */}
             <div className="exam-config">
               <h3>Cấu hình đề thi</h3>
+              
+              <div style={{ marginBottom: '1.5rem', background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                <label className="label" style={{ marginBottom: '0.8rem' }}>
+                  Số câu hỏi muốn làm: <span className="text-primary" style={{fontWeight: 'bold'}}>{questionCount || parseResult.bank.length}</span> / {parseResult.bank.length}
+                </label>
+                <input 
+                  type="range" 
+                  min="1" 
+                  max={parseResult.bank.length} 
+                  value={questionCount || parseResult.bank.length} 
+                  onChange={(e) => handleQuestionCountChange(Number(e.target.value))}
+                  style={{ width: '100%', marginBottom: '1rem', cursor: 'pointer' }}
+                />
+                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                  <input 
+                    type="number" 
+                    min="1" 
+                    max={parseResult.bank.length}
+                    value={questionCount || ''}
+                    onChange={(e) => handleQuestionCountChange(Number(e.target.value))}
+                    className="input"
+                    style={{ width: '80px', padding: '0.4rem', margin: 0 }}
+                  />
+                  <button className="btn btn-secondary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.9rem' }} onClick={() => handleQuestionCountChange(50)}>50</button>
+                  <button className="btn btn-secondary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.9rem' }} onClick={() => handleQuestionCountChange(100)}>100</button>
+                  <button className="btn btn-secondary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.9rem' }} onClick={() => handleQuestionCountChange(200)}>200</button>
+                  <button className="btn btn-secondary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.9rem' }} onClick={() => handleQuestionCountChange(parseResult.bank.length)}>Tất cả</button>
+                </div>
+              </div>
+
+              <div style={{ marginBottom: '1.5rem', background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                <label className="label" style={{ marginBottom: '0.8rem' }}>Chế độ lấy câu hỏi:</label>
+                <div style={{ display: 'flex', gap: '2rem' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                    <input type="radio" name="selectionMode" checked={selectionMode === 'random'} onChange={() => setSelectionMode('random')} />
+                    Ngẫu nhiên (không lặp)
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                    <input type="radio" name="selectionMode" checked={selectionMode === 'sequential'} onChange={() => setSelectionMode('sequential')} />
+                    Theo thứ tự (từ đầu)
+                  </label>
+                </div>
+              </div>
+
               <div className="config-grid">
                 <div>
                   <label className="label" htmlFor="exam-title">Tên đề thi</label>
@@ -268,7 +361,7 @@ export default function HomePage({ onStartExam }) {
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
                 <polygon points="5,3 19,12 5,21" fill="currentColor"/>
               </svg>
-              Bắt Đầu Thi ({parseResult.bank.length} câu · {examDuration} phút)
+              Bắt Đầu Thi ({questionCount || parseResult.bank.length} câu · {examDuration} phút)
             </button>
           </section>
         )}
